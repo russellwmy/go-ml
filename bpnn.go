@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 )
+
 func Rand (a float64, b float64) float64{
 	return (b-a) * rand.Float64() + a
 }
@@ -55,9 +56,9 @@ func (nn *BPNN) Init (ni int, nh int, no int) {
 	nn.ai = make ([]float64, nn.ni)
 	Fill(nn.ai, 1.0)
 	nn.ah = make ([]float64, nn.nh)
-	Fill(nn.ai, 1.0)
+	Fill(nn.ah, 1.0)
 	nn.ao = make ([]float64, nn.no)
-	Fill(nn.ai, 1.0)
+	Fill(nn.ao, 1.0)
 	
 	nn.wi = MakeMatrix (nn.ni, nn.nh)
 	nn.wo = MakeMatrix (nn.nh, nn.no)
@@ -104,11 +105,16 @@ func (nn *BPNN) Update (inputs []float64) []float64{
 		}
 		nn.ao[k] = Sigmoid(sum)
 	}
-	return nn.ao
+	b := make([]float64, len(nn.ao))
+	copy(b, nn.ao)
+	return b
 
 }
 
 func (nn *BPNN) BackPropagate (targets []float64, N float64, M float64) float64{
+	if len(targets) != nn.no {
+		fmt.Println("Wrong number of target values")
+	}
 	// calc output deltas
 	// dE/dw[j][k] = (t[k] - ao[k]) * s'( SUM( w[j][k]*ah[j] ) ) * ah[j]
 	outputDeltas := make([]float64, nn.no)
@@ -118,6 +124,17 @@ func (nn *BPNN) BackPropagate (targets []float64, N float64, M float64) float64{
 		outputDeltas[k] = error * Dsigmoid(nn.ao[k])
 	}
 
+	// calc hidden deltas
+	hiddenDeltas := make([]float64, nn.nh)
+	Fill(hiddenDeltas, 0.0)
+	for j := 0; j < nn.nh; j++ {
+		error := 0.0
+		for k := 0; k < nn.no; k++ {
+			error = error + outputDeltas[k] * nn.wo[j][k]
+		}
+		hiddenDeltas[j] = error * Dsigmoid(nn.ah[j])
+	}
+	
 	// update output weights
 	for j := 0; j < nn.nh; j++ {
 		for k := 0; k < nn.no; k++ {
@@ -127,16 +144,6 @@ func (nn *BPNN) BackPropagate (targets []float64, N float64, M float64) float64{
 		}
 	}
 
-	// calc hidden deltas
-	hiddenDeltas := make([]float64, nn.nh)
-	for j := 0; j < nn.nh; j++ {
-		error := 0.0
-		for k := 0; k < nn.no; k++ {
-			error = error + outputDeltas[k] * nn.wo[j][k]
-		}
-		hiddenDeltas[j] = error * Dsigmoid(nn.ah[j])
-	}
-	
 	// update input weights
 	for i := 0; i < nn.ni; i++ {
 		for j := 0; j < nn.nh; j++ {
@@ -188,15 +195,4 @@ func (nn *BPNN) Train (patterns [][][]float64, iterations int, N float64, M floa
 	}
 }
 	
-func main() {
-	pat := [][][]float64 {
-		{{0,0},{0}},
-		{{0,1},{1}},
-		{{1,0},{1}},
-		{{1,1},{0}},
-	}
-	nn := BPNN{}
-	nn.Init(2,2,1)
-	nn.Train(pat, 1000, 0.3, 0.1)
-	nn.Test(pat)
-}
+
